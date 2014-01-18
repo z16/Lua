@@ -7,9 +7,9 @@ For lists, tables with sequential integral indices, use the lists library and th
 ]]
 
 _libs = _libs or {}
-_libs.tablehelper = true
-_libs.mathhelper = _libs.mathhelper or require('mathhelper')
-_libs.functools = _libs.functools or require('functools')
+_libs.tables = true
+_libs.maths = _libs.maths or require('maths')
+_libs.functions = _libs.functions or require('functions')
 
 _raw = _raw or {}
 _raw.table = _raw.table or {}
@@ -75,8 +75,10 @@ function class(o)
     return mt and mt.__class or type(o)
 end
 
-_libs = _libs
-_meta = _meta
+-- Returns a function that returns the table when called.
+function table.fn(t)
+    return functions.const(t)
+end
 
 -- Checks if a table is an array, only having sequential integer keys.
 function table.isarray(t)
@@ -150,7 +152,7 @@ _meta.T.__add = table.extend
 -- Returns the number of element in the table that satisfy fn. If fn is not a function, counts the number of occurrences of fn.
 function table.count(t, fn)
     if type(fn) ~= 'function' then
-        fn = functools.equals(fn)
+        fn = functions.equals(fn)
     end
 
     count = 0
@@ -205,7 +207,7 @@ function table.amend(t, t_amend, recursive, maxrec, rec)
 
     local cmp
     for key, val in pairs(t_amend) do
-        if t[key] ~= nil and recursive and rec ~= maxrec and type(t[key]) == 'table' and type(val) == 'table' and not table.isarray(val) then
+        if t[key] ~= nil and recursive and rec ~= maxrec and type(t[key]) == 'table' and type(val) == 'table' and class(val) ~= 'List' and class(val) ~= 'Set' and not table.isarray(val) then
             t[key] = table.amend(t[key], val, true, maxrec, rec + 1)
         elseif t[key] == nil then
             t[key] = val
@@ -218,7 +220,7 @@ end
 -- Searches elements of a table for an element. If, instead of an element, a function is provided, will search for the first element to satisfy that function.
 function table.find(t, fn)
     if type(fn) ~= 'function' then
-        fn = functools.equals(fn)
+        fn = functions.equals(fn)
     end
 
     for key, val in pairs(t) do
@@ -437,7 +439,7 @@ end
 
 -- Finds a table entry based on an attribute.
 function table.with(t, attr, val)
-    val = type(val) ~= 'function' and functools.equals(val) or val
+    val = type(val) ~= 'function' and functions.equals(val) or val
     for key, el in pairs(t) do
         if type(el) == 'table' and val(rawget(el, attr)) then
             return el, key
@@ -490,28 +492,6 @@ function table.rekey(t, key)
     return setmetatable(res, getmetatable(t) or _meta.T)
 end
 
--- Return true if any element of t satisfies the condition fn.
-function table.any(t, fn)
-    for _, val in pairs(t) do
-        if(fn(val) == true) then
-            return true
-        end
-    end
-
-    return false
-end
-
--- Return true if all elements of t satisfy the condition fn.
-function table.all(t, fn)
-    for _, val in pairs(t) do
-        if(fn(val) ~= true) then
-            return false
-        end
-    end
-
-    return true
-end
-
 -- Wrapper around unpack(t). Returns table elements as a list of values. Only works on arrays.
 function table.unpack(t)
     return unpack(t)
@@ -546,7 +526,7 @@ end
 
 -- Returns the first table, reassigned to the second one.
 function table.reassign(t, tn)
-    return t:clear():update(tn)
+    return table.update(table.clear(t), tn)
 end
 
 -- Returns an array containing values from start to finish. If no finish is specified, returns table.range(1, start)
@@ -603,12 +583,6 @@ end
 -- Concatenates all elements with a whitespace in between.
 function table.sconcat(t)
     return table.concat(t, ' ')
-end
-
--- Check if table is empty.
--- DEPRECATED: Use table.empty instead.
-function table.isempty(t)
-    return next(t) == nil
 end
 
 -- Check if table is empty.

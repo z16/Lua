@@ -54,15 +54,12 @@ end
 ---- user_env, a table of all of the player defined functions and their current
 ---- variables.
 -----------------------------------------------------------------------------------
-function load_user_files()
+function load_user_files(job_id)
+	job_id = tonumber(job_id)
 	local path
 	
-	if user_env then
-		if type(user_env.file_unload)=='function' then user_env.file_unload()
-		elseif user_env.file_unload then
-			windower.add_to_chat(123,'GearSwap: file_unload() is not a function')
-		end
-	end
+	refresh_globals()
+	user_pcall('file_unload')
 	
 	for i,v in pairs(registered_user_events) do
 		windower.unregister_event(i)
@@ -71,9 +68,9 @@ function load_user_files()
 	user_env = nil
 	registered_user_events = {}
 	
-	local tab = {player.name..'_'..player.main_job..'.lua',player.name..'-'..player.main_job..'.lua',
-		player.name..'_'..player.main_job_full..'.lua',player.name..'-'..player.main_job_full..'.lua',
-		player.name..'.lua',player.main_job..'.lua',player.main_job_full..'.lua','default.lua'}
+	local tab = {player.name..'_'..res.jobs[job_id].short..'.lua',player.name..'-'..res.jobs[job_id].short..'.lua',
+		player.name..'_'..res.jobs[job_id].english..'.lua',player.name..'-'..res.jobs[job_id].english..'.lua',
+		player.name..'.lua',res.jobs[job_id].short..'.lua',res.jobs[job_id].english..'.lua','default.lua'}
 	
 	local path = pathsearch(tab)
 	
@@ -83,17 +80,17 @@ function load_user_files()
 		sets = nil
 		return
 	end
-	user_env = {gearswap = _G, _global = _global,
+	user_env = {gearswap = _G, _global = _global, _settings = _settings,
 		-- Player functions
 		equip = equip, verify_equip=verify_equip, cancel_spell=cancel_spell,
 		force_send=force_send, change_target=change_target, cast_delay=cast_delay,
 		print_set=print_set,set_combine=set_combine,disable=disable,enable=enable,
 		send_command=send_cmd_user,windower=user_windower,include=include_user,
-		midaction=user_midaction,
+		midaction=user_midaction,pet_midaction=user_pet_midaction,
 		
 		-- Library functions
-		string=string, math=math, table=table, T=T,S=S,os=os,type=type,
-		tostring = tostring, tonumber = tonumber, pairs = pairs,
+		string=string,math=math,table=table,set=set,list=list,T=T,S=S,L=L,os=os,
+		text=text,type=type,tostring=tostring,tonumber=tonumber,pairs=pairs,
 		ipairs = ipairs, print=print, add_to_chat=windower.add_to_chat,
 		next=next,lua_base_path=windower.addon_path,empty=empty,
 		
@@ -121,8 +118,8 @@ function load_user_files()
 		sets = nil
 		return
 	else
-		current_job_file = player.main_job
-		print('Loaded your '..player.main_job..' Lua file!')
+		current_job_file = res.jobs[job_id].short
+		print('GearSwap: Loaded your '..res.jobs[job_id].short..' Lua file!')
 	end
 	
 	setfenv(funct, user_env)
@@ -131,17 +128,13 @@ function load_user_files()
 	local status, plugin = pcall(funct)
 	
 	if not status then
-		error('Plugin failed to load: \n'..plugin)
+		error('GearSwap: File failed to load: \n'..plugin)
 		gearswap_disabled = true
 		sets = nil
 		return nil
 	end
 	
-	if type(user_env.get_sets) == 'function' then
-		user_env.get_sets()
-	elseif user_env.get_sets then
-		windower.add_to_chat(123,'GearSwap: get_sets() is defined but is not a function.')
-	end
+	user_pcall('get_sets')
 	
 	gearswap_disabled = false
 	sets = user_env.sets
@@ -170,9 +163,6 @@ function refresh_player()
 	for i,v in pairs(player.vitals) do
 		player[i]=v
 	end
-	if player.main_job == 'NONE' then
-		player.main_job = 'MON'
-	end
 	if not player.sub_job then
 		player.sub_job = 'NONE'
 		player.sub_job_level = 0
@@ -186,12 +176,14 @@ function refresh_player()
 	
 	
 	for i,v in pairs(player_mob_table) do
-		if i~= 'is_npc' and i~='tp' and i~='mpp' and i~='claim_id' and i~='status' then
+		if i == 'name' then
+			player['mob_name'] = v
+		elseif i~= 'is_npc' and i~='tp' and i~='mpp' and i~='claim_id' and i~='status' then
 			player[i] = v
 		end
 	end
 	
-	if player_mob_table['race']~= nil then
+	if player_mob_table.race ~= nil then
 		player.race_id = player.race
 		player.race = mob_table_races[player.race]
 	end
@@ -211,7 +203,14 @@ function refresh_player()
 	
 	-- Assign player.equipment to be the gear that has been sent out and the server currently thinks
 	-- you are wearing. (the sent_out_equip for loop above).
-	player.equipment = to_names_set(cur_equip,items.inventory)
+	player.equipment = make_user_table()
+	table.reassign(player.equipment,to_names_set(cur_equip,items.inventory))
+	
+	-- Assign player.inventory to be keyed to item.inventory[i][language] and to have a value of count, similar to buffactive
+	player.inventory = refresh_item_list(items.inventory)
+	player.sack = refresh_item_list(items.sack)
+	player.satchel = refresh_item_list(items.satchel)
+	player.case = refresh_item_list(items.case)
 	
 	-- Monster tables for the target and subtarget.
 	player.target = target_complete(windower.ffxi.get_mob_by_target('t'))
@@ -231,7 +230,53 @@ function refresh_player()
 			pet.element = 'None'
 		end
 	else
-		table.reassign(pet,{type="NONE",isvalid=false})
+		table.reassign(pet,{isvalid=false})
+	end
+	
+	if player.main_job == 'PUP' or player.sub_job == 'PUP' then
+		local auto_tab
+		if player.main_job == 'PUP' then auto_tab = windower.ffxi.get_mjob_data()
+		else auto_tab = windower.ffxi.get_sjob_data() end
+		
+		if auto_tab.name then
+			for i,v in pairs(auto_tab) do
+				if not T{'available_heads','attachments','available_frames','available_attachments','frame','head'}:contains(i) then
+					pet[i] = v
+				end
+			end
+			pet.available_heads = make_user_table()
+			pet.attachments = make_user_table()
+			pet.available_frames = make_user_table()
+			pet.available_attachments = make_user_table()
+			for i,v in pairs(auto_tab.available_heads) do
+				if v ~= 0 then
+					pet.available_heads[r_items[i+8192][language]] = true
+				end
+			end
+			for i,v in pairs(auto_tab.available_frames) do
+				if v ~= 0 then
+					pet.available_frames[r_items[i+8223][language]] = true
+				end
+			end
+			for i,v in pairs(auto_tab.available_attachments) do
+				if v ~= 0 then
+					pet.available_attachments[r_items[i+8256][language]] = true
+				end
+			end
+			for i,v in pairs(auto_tab.attachments) do
+				if v ~= 0 then
+					pet.attachments[r_items[v+8448][language]] = true
+				end
+			end
+			
+			pet.frame = r_items[auto_tab.frame+8223][language]
+			pet.head = r_items[auto_tab.head+8192][language]
+			if pet.max_mp ~= 0 then
+				pet.mpp = math.floor(pet.mp/pet.max_mp*100)
+			else
+				pet.mpp = 0
+			end
+		end
 	end
 	
 	table.reassign(fellow,target_complete(windower.ffxi.get_mob_by_target('<ft>')))
@@ -289,8 +334,8 @@ function refresh_ffxi_info()
 		world.weather = 'Ice'
 		world.weather_element = 'Ice'
 	elseif buffactive.thunderstorm then
-		world.weather = 'Thunder'
-		world.weather_element = 'Thunder'
+		world.weather = 'Lightning'
+		world.weather_element = 'Lightning'
 	end
 end
 
@@ -309,26 +354,51 @@ end
 ---- to the individual subtables (total number of people in each party.
 -----------------------------------------------------------------------------------
 function refresh_group_info()
-	local temp_alliance = {[1]={count=0},[2]={count=0},[3]={count=0}}
+	clean_alliance()
+	
 	local j = windower.ffxi.get_party() or {}
 	for i,v in pairs(j) do
 		if v.mob and v.mob.race then
 			v.mob.race_id = v.mob.race
 			v.mob.race = mob_table_races[v.mob.race]
 		end
-		if i:sub(1) == 'p' then
-			temp_alliance[1][tonumber(i:sub(2))+1] = v
-			temp_alliance[1].count = temp_alliance[1].count +1
-		elseif i:sub(1,2) == 'a1' then
-			temp_alliance[2][tonumber(i:sub(3))+1] = v
-			temp_alliance[2].count = temp_alliance[2].count +1
-		elseif i:sub(1,2) == 'a2' then
-			temp_alliance[3][tonumber(i:sub(3))+1] = v
-			temp_alliance[3].count = temp_alliance[3].count +1
+		
+		local allyIndex
+		local partyIndex
+		
+		-- For 'p#', ally index is 1, party index is the second char
+		if i:sub(1,1) == 'p' then
+			allyIndex = 1
+			partyIndex = tonumber(i:sub(2))+1
+		-- For 'a##', ally index is the second char, party index is the third char
+		else
+			allyIndex = tonumber(i:sub(2,2))+1
+			partyIndex = tonumber(i:sub(3))+1
 		end
+		
+		alliance[allyIndex][partyIndex] = v
+		alliance[allyIndex].count = alliance[allyIndex].count + 1
+		alliance.count = alliance.count + 1
 	end
-	table.reassign(alliance,temp_alliance)
-	alliance.count = temp_alliance[1].count + temp_alliance[2].count + temp_alliance[3].count
+end
+
+-- Cleans the current alliance array while keeping the subtable pointers intact.
+function clean_alliance()
+	if not alliance or #alliance == 0 then
+		alliance = make_user_table()
+		alliance[1]={count=0}
+		alliance[2]={count=0}
+		alliance[3]={count=0}
+		alliance.count=0
+	else
+		for ally_party = 1,3 do
+			for i,v in pairs(alliance[ally_party]) do
+				alliance[ally_party][i] = nil
+			end
+			alliance[ally_party].count = 0
+		end
+		alliance.count = 0
+	end
 end
 
 -----------------------------------------------------------------------------------
@@ -357,6 +427,49 @@ function refresh_buff_active(bufflist)
 	table.reassign(buffactive,buffarr)
 end
 
+-----------------------------------------------------------------------------------
+--Name: refresh_item_list(itemlist)
+--Args:
+---- itemlist (table): List of items from windower.ffxi.get_items().something
+-----------------------------------------------------------------------------------
+--Returns:
+---- retarr (table)
+---- retarr is indexed by the item name, and contains a table with the
+---- item id, count, and short name.  If the long name for the item is
+---- different than the short name, an additional entry is added for
+---- that.
+----
+---- Overall, this allows doing simple existance checks for both short
+---- and long name (eg: player.inventory["Theo. Cap +1"] and
+---- player.inventory["Theopany Cap +1"] both return the same table,
+---- and both would be 'true' in a conditional check)), and get the item
+---- count (player.inventory["Orichalc. Bullet"].count)
+---- It also allows one to check for the alternate spelling of an item.
+-----------------------------------------------------------------------------------
+function refresh_item_list(itemlist)
+	retarr = make_user_table()
+	for i,v in pairs(itemlist) do
+		if v.id and v.id ~= 0 then
+			-- If we don't already have the primary item name in the table, add it.
+			if not retarr[r_items[v.id][language]] then
+				-- We add the entry as a sub-table containing the id and count
+				retarr[r_items[v.id][language]] = {id=v.id, count=v.count, shortname=r_items[v.id][language]:lower()}
+				-- If a long version of the name exists, and is different from the short version,
+				-- add the long name to the info table and point the long name's key at that table.
+				if r_items[v.id][language..'_log'] and r_items[v.id][language..'_log']:lower() ~= r_items[v.id][language]:lower() then
+					retarr[r_items[v.id][language]].longname = r_items[v.id][language..'_log']:lower()
+					retarr[r_items[v.id][language..'_log']] = retarr[r_items[v.id][language]]
+				end
+			else
+				-- If there's already an entry for this item, all the hard work has already
+				-- been done.  Just update the count on the subtable of the main item, and
+				-- everything else will link together.
+				retarr[r_items[v.id][language]].count = retarr[r_items[v.id][language]].count + v.count
+			end
+		end
+	end
+	return retarr
+end
 
 -----------------------------------------------------------------------------------
 --Name: refresh_user_env()
@@ -366,9 +479,11 @@ end
 --Returns:
 ---- none, but loads user files if they exist.
 -----------------------------------------------------------------------------------
-function refresh_user_env()
+function refresh_user_env(job_id)
 	refresh_globals()
-	windower.send_command('@wait 0.5;lua i gearswap load_user_files')
+	out_arr = {}
+	if not job_id then job_id = windower.ffxi.get_player().main_job_id end
+	windower.send_command('@wait 0.5;lua i '.._addon.name..' load_user_files '..job_id)
 end
 
 

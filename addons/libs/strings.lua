@@ -3,15 +3,20 @@ A few string helper functions.
 ]]
 
 _libs = _libs or {}
-_libs.stringhelper = true
-_libs.functools = _libs.functools or require('functools')
+_libs.strings = true
+_libs.functions = _libs.functions or require('functions')
 
 _meta = _meta or {}
 
 debug.getmetatable('').__index = function(str, k)
     return string[k] or type(k) == 'number' and math.abs(k) <= #str and string.sub(str, k, k) or nil
 end
-debug.getmetatable('').__unm = functools.negate..functools.equals
+debug.getmetatable('').__unm = functions.negate..functions.equals
+
+-- Returns a function that returns the string when called.
+function string.fn(str)
+    return functions.const(str)
+end
 
 -- Returns the character at position pos. Negative positions are counted from the opposite end.
 function string.at(str, pos)
@@ -212,14 +217,12 @@ end
 
 -- Takes a padding character pad and pads the string str to the left of it, until len is reached. pad defaults to a space.
 function string.lpad(str, pad, len)
-    pad = pad or ' '
     return (pad:rep(len)..str):sub(-(len > #str and len or #str))
 end
 
 -- Takes a padding character pad and pads the string str to the right of it, until len is reached. pad defaults to a space.
 function string.rpad(str, pad, len)
-    pad = pad or ' '
-    return (str..pad:rep(len)):sub(1, -(len > #str and len or #str))
+    return (str..pad:rep(len)):sub(1, len > #str and len or #str)
 end
 
 -- Returns the string padded with zeroes until the length is len.
@@ -488,11 +491,9 @@ end
 -- * oxford: Appends the last element with a comma, followed by an and.
 -- The third argument specifies an optional output, if the table is empty.
 function table.format(t, trail, subs)
-    local l = #t
-    if l == 0 then
+    local first = next(t)
+    if not first then
         return subs or ''
-    elseif l == 1 then
-        return t[next(t)]
     end
 
     trail = trail or 'and'
@@ -508,7 +509,19 @@ function table.format(t, trail, subs)
         warning('Invalid format for table.format: \''..trail..'\'.')
     end
 
-    return t:slice(1, -2):concat(', ')..last..t:last()
+    local res = ''
+    for k, v in pairs(t) do
+        res = res .. tostring(v)
+        if next(t, k) then
+            if next(t, next(t, k)) then
+                res = res .. ', '
+            else
+                res = res .. last
+            end
+        end
+    end
+
+    return res
 end
 
 --[[

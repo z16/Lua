@@ -4,7 +4,7 @@ A library providing advanced list support and better optimizations for list-base
 
 _libs = _libs or {}
 _libs.lists = true
-_libs.tablehelper = _libs.tablehelper or require('tablehelper')
+_libs.tables = _libs.tables or require('tables')
 
 _raw = _raw or {}
 _raw.table = _raw.table or {}
@@ -14,15 +14,11 @@ list = {}
 _meta = _meta or {}
 _meta.L = {}
 _meta.L.__index = function(l, k)
-    if type(k) == 'number' and k < 0 then
-        k = l.n + k + 1
-        return rawget(l[k])
+    if type(k) == 'number' then
+        k = k < 0 and l.n + k + 1 or k
+        return rawget(l, k)
     end
-    if list[k] ~= nil then
-        return list[k]
-    else
-        return T(l)[k]
-    end
+    return rawget(list, k) or rawget(table, k)
 end
 _meta.L.__newindex = function(l, k, v)
     if type(k) == 'number' then
@@ -175,15 +171,6 @@ function list.concat(l, str, from, to)
     return res
 end
 
-function list.clear(l)
-    for i = 1, l.n do
-        rawset(l, key, nil)
-    end
-
-    l.n = 0
-    return l
-end
-
 function list.with(l, attr, val)
     for i = 1, l.n do
         local el = rawget(l, i)
@@ -211,7 +198,7 @@ function list.map(l, fn)
     local res = {}
 
     for key = 1, l.n do
-        rawset(res, key, fn(rawget(l, key)))
+        res[key] = fn(rawget(l, key))
     end
 
     res.n = l.n
@@ -233,20 +220,6 @@ function list.filter(l, fn)
 
     res.n = key
     return setmetatable(res, _meta.L)
-end
-
-function list.reduce(l, fn, init)
-    local acc = init
-    for key = 1, l.n do
-        local val = rawget(l, key)
-        if acc == nil then
-            acc = val
-        else
-            acc = fn(acc, val)
-        end
-    end
-
-    return acc
 end
 
 function list.flatten(l, rec)
@@ -434,6 +407,37 @@ function list.tostring(l)
 end
 
 _meta.L.__tostring = list.tostring
+
+function list.format(l, trail, subs)
+    if l.n == 0 then
+        return subs or ''
+    end
+
+    trail = trail or 'and'
+
+    local last
+    if trail == 'and' then
+        last = ' and '
+    elseif trail == 'csv' then
+        last = ', '
+    elseif trail == 'oxford' then
+        last = ', and '
+    else
+        warning('Invalid format for table.format: \''..trail..'\'.')
+    end
+
+    local res = ''
+    for i = 1, l.n do
+        res = res .. tostring(l[i])
+        if i < l.n - 1 then
+            res = res .. ', '
+        elseif i == l.n - 1 then
+            res = res .. last
+        end
+    end
+
+    return res
+end
 
 --[[
 Copyright (c) 2013, Windower

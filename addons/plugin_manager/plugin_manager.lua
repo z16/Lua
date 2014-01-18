@@ -25,8 +25,8 @@
 --SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-file = require 'filehelper'
-require 'tablehelper'
+file = require 'files'
+require 'tables'
 xml = require 'xml'
 
 
@@ -167,7 +167,7 @@ function make_name(name)
 	if name then
 		name = name:lower()
 	elseif windower.ffxi.get_player() then
-		name = windower.get_player().name:lower()
+		name = windower.ffxi.get_player().name:lower()
 	end
 	
 	if name == nil or name == '' or not loader_array[name] then

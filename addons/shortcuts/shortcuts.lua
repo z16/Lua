@@ -32,16 +32,17 @@ if windower.dir_exists('../addons/shortcuts/data/') and logging then
 	logfile:flush()
 end
 
-file = require 'filehelper'
+file = require 'files'
 require 'sets'
 require 'helper_functions'
+require 'tables'
 
 require 'resources'
 require 'ambiguous_names'
 require 'targets'
 
 
-_addon.version = '1.6'
+_addon.version = '1.8'
 _addon.name = 'Shortcuts'
 _addon.author = 'Byrth'
 _addon.commands = {'shortcuts'}
@@ -88,7 +89,7 @@ windower.register_event('outgoing text',function(original,modified)
 	if debugging then 
 		local tempst = windower.ffxi.get_mob_by_target('st')
 		windower.add_to_chat(8,modified..' '..tostring(tempst))
-		end
+	end
 	temp_org = temp_org:gsub(' <wait %d+>','')
 	if logging then
 		logfile:write('\n\n',tostring(os.clock()),'temp_org: ',temp_org,'\nModified: ',modified)
@@ -135,6 +136,16 @@ function command_logic(original,modified)
 	local potential_targ = splitline[#splitline]
 	local a,b,spell = string.find(original,'"(.-)"')
 	
+	if unhandled_list[command] then
+		return modified
+	end
+	
+	if spell then
+		spell = spell:lower()
+	elseif #splitline == 3 then
+		spell = splitline[2]
+	end
+	
 	if targ_reps[potential_targ] then
 		potential_targ = targ_reps[potential_targ]
 	end
@@ -158,7 +169,7 @@ function command_logic(original,modified)
 		else -- If there are excluded secondary commands (like /pcmd add <name>)
 			local tempcmd = command
 			local passback
-			for i,v in pairs(splitline) do -- Iterate over the potential secondary arguments.
+			for _,v in pairs(splitline) do -- Iterate over the potential secondary arguments.
 			-- I'm not sure when there could be more than one secondary argument, but it's ready if it happens.
 				if command2_list[command]:contains(v) then
 					tempcmd = tempcmd..' '..v
@@ -198,7 +209,7 @@ function command_logic(original,modified)
 			logfile:flush()
 		end
 		return modified
-	elseif (command_list[command] and convert_spell(spell or '') and valid_target(potential_targ)) then
+	elseif command_list[command] and convert_spell(spell or '') and valid_target(potential_targ,true) then
 		-- If the submitted ability is already properly formatted, send it out. Fixes capitalization and minor differences.
 		lastsent = ''
 		if logging then
@@ -229,18 +240,21 @@ end
 ---- Sends a command if the command needs to be changed.
 -----------------------------------------------------------------------------------
 function interp_text(splitline,offset,modified)
-	local temptarg
-	if #splitline > 1 then
+	local temptarg,abil
+	local no_targ_abil = strip(_raw.table.concat(splitline,' ',1+offset,#splitline))
+	
+	if validabils[no_targ_abil] then
+		abil = no_targ_abil
+	elseif #splitline > 1 then
 		local potential_targ = splitline[#splitline]
 		if targ_reps[potential_targ] then
 			potential_targ = targ_reps[potential_targ]
 		end
 		temptarg = valid_target(potential_targ)
 	end
-	local abil
 
 	if temptarg then abil = _raw.table.concat(splitline,' ',1+offset,#splitline-1)
-	else abil = _raw.table.concat(splitline,' ',1+offset,#splitline) end
+	elseif not abil then abil = _raw.table.concat(splitline,' ',1+offset,#splitline) end
 
 	local strippedabil = strip(abil) -- Slug the ability
 
@@ -258,7 +272,7 @@ function interp_text(splitline,offset,modified)
 			r_line, s_type = ambig(strippedabil)
 		end
 		
-		local targets = r_line['validtarget']
+		local targets = r_line.validtarget
 		
 		-- Handling for abilities that change potential targets.
 		if r_line.prefix == '/song' or r_line.prefix == '/so' and r_line.casttime == 8 then
@@ -268,7 +282,7 @@ function interp_text(splitline,offset,modified)
 			end
 		end
 		
-		lastsent = r_line.prefix..' "'..r_line['english']..'" '..(temptarg or target_make(targets))
+		lastsent = r_line.prefix..' "'..r_line.english..'" '..(temptarg or target_make(targets))
 		if debugging then windower.add_to_chat(8,tostring(counter)..' input '..lastsent) end
 		if logging then
 			logfile:write('\n\n',tostring(os.clock()),'Original: ',table.concat(splitline,' '),'\n(180) ',lastsent)

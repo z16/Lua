@@ -18,6 +18,7 @@ data.outgoing[0x029] = {name='Move Item',           description='Move item from 
 data.outgoing[0x032] = {name='Offer Trade',         description='This is sent when you offer to trade somebody.'}
 data.outgoing[0x033] = {name='Trade Tell',          description='This packet allows you to accept or cancel a trade request.'}
 data.outgoing[0x034] = {name='Trade Item',          description='Sends the item you want to trade to the server.'}
+data.outgoing[0x036] = {name='Menu Item',           description='Use an item from the item menu.'}
 data.outgoing[0x037] = {name='Use Item',            description='Use an item.'}
 data.outgoing[0x03A] = {name='Sort Item',           description='Packet sent when you choose to auto-sort your inventory.'}
 data.outgoing[0x04B] = {name='Servmes',             description='Requests the server message (/servmes).'}
@@ -55,6 +56,7 @@ data.outgoing[0x104] = {name='Leave Bazaar',        description='Sent when clien
 data.outgoing[0x105] = {name='View Bazaar',         description='Sent when viewing somebody\'s bazaar.'}
 data.outgoing[0x106] = {name='Buy Bazaar Item',     description='Buy an item from somebody\'s bazaar.'}
 data.outgoing[0x10A] = {name='Set Price',           description='Set the price on a bazaar item.'}
+data.outgoing[0x10F] = {name='Currency Menu',       description='Requests currency information for the menu.'}
 
 -- Server packets (incoming)
 data.incoming[0x009] = {name='Standard Message',    description='A standardized message send from FFXI.'}
@@ -66,7 +68,7 @@ data.incoming[0x017] = {name='Incoming Chat',       description='Packet contains
 data.incoming[0x01B] = {name='Job Info',            description='Job Levels and levels unlocked.'}
 data.incoming[0x01C] = {name='Inventory Count',     description='Describes number of slots in inventory.'}
 data.incoming[0x01D] = {name='Finish Inventory',    description='Finish listing the items in inventory.'}
-data.incoming[0x01E] = {name='Modify Inventory',    description='Modifies items in your inventor.'}
+data.incoming[0x01E] = {name='Modify Inventory',    description='Modifies items in your inventory.'}
 data.incoming[0x01F] = {name='Item Assign',         description='Assigns an ID to equipped items in your inventory.'}
 data.incoming[0x020] = {name='Item Update',         description='Info about item in your inventory.'}
 data.incoming[0x021] = {name='Trade Requested',     description='Sent when somebody offers to trade with you.'}
@@ -121,6 +123,7 @@ data.incoming[0x0F6] = {name='Widescan Mark',       description='Marks the start
 data.incoming[0x0F9] = {name='Reraise Activation',  description='Reassigns targetable status on reraise activation?'}
 data.incoming[0x105] = {name='Data Download 4',     description='The data that is sent to the client when it is "Downloading data...".'}
 data.incoming[0x108] = {name='Data Download 5',     description='The data that is sent to the client when it is "Downloading data...".'}
+data.incoming[0x113] = {name='Currency Info',       description='Contains all currencies to be displayed in the currency menu.'}
 
 return data
 

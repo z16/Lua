@@ -47,24 +47,22 @@ function valid_target(targ,flag)
 			return '<me>'
 		end
 		return targ
+	elseif st_targs:contains(targ) or tonumber(targ) then
+		return targ
 	elseif targ and windower.ffxi.get_player() then
 	-- If the target exists, scan the mob array for it
-		local mob_array = windower.ffxi.get_mob_array()
 		local current_target = windower.ffxi.get_mob_by_target('<t>')
 		local targar = {}
-		for i,v in pairs(mob_array) do
-			targ = percent_strip(targ)
-			if string.find(v.name:lower(),san_targ:lower()) then
+		for i,v in pairs(windower.ffxi.get_mob_array()) do
+			if string.find(v.name:lower(),san_targ:lower()) and v.valid_target then
 				-- Handling for whether it's a monster or not
 				if v.is_npc and current_target then
 					if v.id == current_target.id then
-						targar['<t>'] = v.distance
+						targar['<t>'] = math.sqrt(v.distance)
 					end
-				else
-					targar[v.name] = v.distance
+				elseif not v.is_npc then
+					targar[v.name] = math.sqrt(v.distance)
 				end
-			elseif tonumber(targ) == v.id then
-				targar['<lastst>'] = v.distance
 			end
 		end
 		
@@ -75,9 +73,9 @@ function valid_target(targ,flag)
 			spell_targ = false
 		else
 			-- If targ starts an element of the monster array, use it.
-			local min_dist = 500
+			local min_dist = 50
 			for i,v in pairs(targar) do
-				if i:lower()==san_targ:lower() or i:lower():find('^'..san_targ:lower()) then
+				if (i:lower()==san_targ:lower()) then-- or i:lower():find('^'..san_targ:lower())) then
 					spell_targ = i
 					break
 				end
@@ -108,7 +106,7 @@ function target_make(targets)
 		-- rest of the processing and just return <me>.
 	elseif target.hpp == 0 then
 		target_type = 'Corpse'
-	elseif target['is_npc'] then
+	elseif target.is_npc then
 		target_type = 'Enemy'
 		-- Need to add handling that differentiates 'Enemy' and 'NPC' here.
 	else
@@ -122,6 +120,9 @@ function target_make(targets)
 					else
 						target_type = 'Party'
 					end
+				end
+				if target.charmed then
+					target_type = 'Enemy'
 				end
 				break
 			end
